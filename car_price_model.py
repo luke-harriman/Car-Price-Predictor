@@ -15,11 +15,17 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.metrics import Metric
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.callbacks import LearningRateScheduler, EarlyStopping
+import joblib
+import json
 
 
 
 # Constants
 CATEGORICAL_COLUMNS = ['Brand', 'Year', 'Model', 'Car/Suv', 'UsedOrNew', 'Transmission', 'Engine', 'DriveType', 'FuelType', 'ColourExtInt', 'CylindersinEngine', 'BodyType', 'Doors', 'Seats']
+NUMERICAL_COLUMNS = ['Kilometers']
+with open('columns_info.json', 'w') as file:
+    json.dump({'categorical_columns': CATEGORICAL_COLUMNS, 'numerical_columns': NUMERICAL_COLUMNS}, file)
+
 
 # Transformer Encoder Function
 def transformer_block(x, head_size, num_heads, ff_dim, dropout=0.1, reg=l2(1e-6)):
@@ -114,6 +120,9 @@ def preprocess_data(filename, categorical_columns):
 
     X = df.drop('Price', axis=1)
     y = pd.to_numeric(df['Price'], errors='coerce').fillna(method='bfill')
+
+    joblib.dump(label_encoders, 'label_encoders.pkl')
+    joblib.dump(min_max_scaler, 'min_max_scaler.pkl')
 
     return train_test_split(X, y, test_size=0.2, random_state=42), label_encoders, min_max_scaler
 
@@ -214,7 +223,7 @@ def dowload_to_csv(predictions, test_data, label_encoders, actual_prices):
 
 # Main Function
 def main():
-    (X_train, X_test, y_train, y_test), label_encoders, min_max_scaler = preprocess_data('Australian Vehicle Prices.csv', CATEGORICAL_COLUMNS)
+    (X_train, X_test, y_train, y_test), label_encoders, min_max_scaler = preprocess_data('data/Australian Vehicle Prices.csv', CATEGORICAL_COLUMNS)
     model = create_model(CATEGORICAL_COLUMNS, label_encoders)
 
     train_data = [X_train[col].values for col in CATEGORICAL_COLUMNS]
@@ -234,7 +243,7 @@ def main():
         callbacks=[callback_lr, callback_es]
     )
     model.evaluate(test_data, y_test, verbose=2)
-
+    model.save('saved_model')
     # Predictions
     predictions, data = make_predictions(model, test_data)
     # display_predictions_with_details(predictions, test_data, label_encoders, y_test.values)
