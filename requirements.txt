@@ -1,7 +1,10 @@
 numpy
 pandas
-seaborn
-matplotlib
 tensorflow
-scikit-learn
+torch
+librosa
 joblib
+Flask
+gunicorn
+pillow
+transformers
