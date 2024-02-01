@@ -6,7 +6,9 @@ This repository contains the source code for an iOS app that interfaces with a F
 
 ## Functionality
 **Speech to Text**: The app takes verbal descriptions of cars (e.g., Brand, Model, Year, Mileage, etc.) and converts them into text using OpenAI's Whisper speech-to-text model.
+
 **Text Processing**: The textual description is then tokenized using a sentence embedding model from Sentence Transformers available on Hugging Face.
+
 **Model Training and Prediction**: The embedding vector is passed to a custom transformer model trained on GCP. This model was trained specifically for this purpose, outperforming the fine-tuned DistilBERT-Uncased model in prediction accuracy.
 
 ## Data Source and Preparation
