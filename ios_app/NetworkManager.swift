@@ -3,7 +3,7 @@ import Foundation
 
 class NetworkManager: ObservableObject {
     func uploadAudioFile(completion: @escaping (String?) -> Void) {
-        let url = URL(string: "https://prediction-ppgfuuhtkq-ts.a.run.app")!
+        let url = URL(string: "Include the GCP Endpoint Here")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         
