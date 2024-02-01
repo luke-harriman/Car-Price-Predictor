@@ -1,19 +1,15 @@
 import tensorflow as tf
 from transformers import DistilBertTokenizer, TFDistilBertForSequenceClassification
+from transformers import WhisperProcessor, WhisperForConditionalGeneration
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.optimizers.legacy import Adam
-import numpy as np
-import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
+import pandas as pd
 import joblib
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
+from tensorflow.keras.metrics import MeanAbsoluteError, RootMeanSquaredError
 from flask import Flask, request, jsonify
 import librosa
-import torch
 import os
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
-import tensorflow.keras.backend as K
-from tensorflow.keras.metrics import MeanAbsoluteError, RootMeanSquaredError
 from sentence_transformers import SentenceTransformer
 from custom_metrics import RSquared, WeightedAverageInaccuracy, AverageInaccuracy
 

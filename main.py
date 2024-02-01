@@ -4,8 +4,7 @@ import numpy as np
 import librosa
 import torch
 import os 
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
-from transformers import DistilBertTokenizer, TFDistilBertForSequenceClassification
+from transformers import WhisperProcessor, WhisperForConditionalGeneration, DistilBertTokenizer, TFDistilBertForSequenceClassification
 from sentence_transformers import SentenceTransformer
 from tensorflow.keras.metrics import MeanAbsoluteError, RootMeanSquaredError
 from custom_metrics import RSquared, WeightedAverageInaccuracy, AverageInaccuracy
