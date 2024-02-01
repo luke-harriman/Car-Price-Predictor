@@ -6,3 +6,7 @@ __pycache__
 .pytest_cache
 .idea 
 test 
+data/model_produced_data
+failed_experiemnts
+test_endpoint
+test_model

@@ -8,3 +8,4 @@ Flask
 gunicorn
 pillow
 transformers
+sentence_transformers

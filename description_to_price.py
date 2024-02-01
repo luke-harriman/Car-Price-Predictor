@@ -3,80 +3,110 @@ from transformers import DistilBertTokenizer, TFDistilBertForSequenceClassificat
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.optimizers.legacy import Adam
 import numpy as np
-import pandas as pd 
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+import joblib
+from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
+from flask import Flask, request, jsonify
+import librosa
+import torch
+import os
+from transformers import WhisperProcessor, WhisperForConditionalGeneration
+import tensorflow.keras.backend as K
+from tensorflow.keras.metrics import MeanAbsoluteError, RootMeanSquaredError
+from sentence_transformers import SentenceTransformer
+from custom_metrics import RSquared, WeightedAverageInaccuracy, AverageInaccuracy
 
-# Define a function to convert text data into input features
-def convert_examples_to_tf_dataset(examples, labels, tokenizer, max_length=512):
-    input_ids, attention_masks, labels_out = [], [], []
-
-    for example, label in zip(examples, labels):
-        bert_input = tokenizer.encode_plus(
-            example,
-            add_special_tokens=True,
-            max_length=max_length,
-            pad_to_max_length=True,
-            return_attention_mask=True,
-            truncation=True,
-        )
-        
-        input_ids.append(bert_input['input_ids'])
-        attention_masks.append(bert_input['attention_mask'])
-        labels_out.append([label])
-
-    # Convert to numpy arrays
-    input_ids = np.array(input_ids)
-    attention_masks = np.array(attention_masks)
-    labels_out = np.array(labels_out)
-
-    # Print shapes for debugging
-    # print(f"Input IDs shape: {input_ids.shape}")
-    # print(f"Attention Masks shape: {attention_masks.shape}")
-    # print(f"Labels shape: {labels_out.shape}")
-
-    # Create TensorFlow dataset
-    dataset = tf.data.Dataset.from_tensor_slices(((input_ids, attention_masks), labels_out))
-
-    return dataset
-
-# Initialize tokenizer
-tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
-
-# Prepare the dataset
-
-data = pd.read_csv('data/descriptions_to_car_prices.csv')
-data['Prices'] = pd.to_numeric(data['Price'], errors='coerce')
-data = data.dropna()
-
-descriptions = data['Description']
-prices = data['Prices']
-
-# Split the dataset into training and validation sets
-train_desc, val_desc, train_prices, val_prices = train_test_split(descriptions, prices, test_size=0.1)
-
-# Convert the data into TensorFlow dataset
-# Convert the data into TensorFlow dataset
-train_data = convert_examples_to_tf_dataset(train_desc, train_prices, tokenizer)
-val_data = convert_examples_to_tf_dataset(val_desc, val_prices, tokenizer)
-
-# Batch the data
-batch_size = 254
-train_data = train_data.batch(batch_size)
-val_data = val_data.batch(batch_size)
-
-# Load pre-trained DistilBERT model
+# Early Stopping
+early_stopping = EarlyStopping(
+    monitor='val_loss',  # Monitor validation loss
+    patience=10,         # Number of epochs with no improvement after which training will be stopped
+    restore_best_weights=True,  # Whether to restore model weights from the epoch with the best value of the monitored quantity
+    verbose=1           # Whether to output a message when training is stopped
+)
 
 
-model = TFDistilBertForSequenceClassification.from_pretrained('distilbert-base-uncased', num_labels=1)
+
+dataset = pd.read_csv("data/descriptions_to_car_prices.csv")
+dataset['Price'] = pd.to_numeric(dataset['Price'], errors='coerce')
+dataset = dataset.dropna(subset=['Price'])
+dataset['Price'] = (dataset['Price'] / 500).round() * 500
+# Drop all the rows in the dataset where the description column contains a particular substring
+# Escaping special characters in the substring for regular expression
+dataset = dataset[~dataset['Description'].str.contains(r'\*\*', regex=True, case=False)]
+dataset = dataset[~dataset['Description'].str.contains(r'%', regex=True, case=False)]
+dataset = dataset[~dataset['Description'].str.contains(r'S S S ', regex=True, case=False)]
+dataset = dataset[dataset['Price'] <= 120000]
+dataset = dataset[dataset['Price'] >= 500]
+
+
+# Embedding Model
+model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+
+# Generate embeddings
+embeddings = dataset['Description'].apply(lambda x: model.encode(x))
+
+# Convert embeddings to a suitable format
+embeddings = np.stack(embeddings.values)
+
+
+def build_transformer_model(embedding_dim, num_heads, ff_dim):
+    inputs = tf.keras.Input(shape=(embedding_dim,))
+    x = tf.keras.layers.Reshape((1, embedding_dim))(inputs)
+
+    x = transformer_block(x, num_heads, ff_dim)
+
+    x = tf.keras.layers.Flatten()(x)  # Flatten the output
+    x = tf.keras.layers.Dropout(0.15)(x)
+    x = tf.keras.layers.Dense(32, activation="relu")(x)
+    x = tf.keras.layers.Dropout(0.15)(x)
+    outputs = tf.keras.layers.Dense(1)(x)
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    return model
+
+def transformer_block(inputs, num_heads, ff_dim, rate=0.15):
+    # Multi-head self attention
+    attention_output = tf.keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=ff_dim)(inputs, inputs)
+    attention_output = tf.keras.layers.Dropout(rate)(attention_output)
+    attention_output = tf.keras.layers.LayerNormalization(epsilon=1e-6)(inputs + attention_output)
+
+    # Feed-forward layer
+    ff_output = tf.keras.layers.Dense(ff_dim, activation="relu")(attention_output)
+    ff_output = tf.keras.layers.Dense(inputs.shape[-1])(ff_output)
+    ff_output = tf.keras.layers.Dropout(rate)(ff_output)
+    ff_output = tf.keras.layers.LayerNormalization(epsilon=1e-6)(attention_output + ff_output)
+    return ff_output
+
+# Prepare labels
+labels = dataset['Price'].values
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(embeddings, labels, test_size=0.2, random_state=42)
+
+# Define the model
+embedding_dim = (X_train.shape[1]) # Make sure input_shape matches the shape of embeddings
+model = build_transformer_model(embedding_dim, num_heads=8, ff_dim=32)
+
 
 # Compile the model
-optimizer = Adam(learning_rate=0.001)
-loss = tf.keras.losses.MeanSquaredError()
-model.compile(optimizer=optimizer, loss=loss)
+# optimizer =  tf.keras.optimizers.RMSprop(learning_rate=0.001, rho=0.9)
+# loss_func = tf.keras.losses.Huber(delta=1.0)
+mse = tf.keras.losses.MeanSquaredError()
+mae = MeanAbsoluteError()
+rmse = RootMeanSquaredError()
+rsq = RSquared()
+weighted_inacc = WeightedAverageInaccuracy()  # Custom metric class
+average_inacc = AverageInaccuracy()
 
-# Train the model
-model.fit(train_data, epochs=10, validation_data=val_data)
+model.compile(optimizer='adam',
+              loss='mean_squared_error',
+              metrics=[mse, mae, rmse, rsq, weighted_inacc, average_inacc])
 
-# Save Model
-model.save_pretrained('production_models')
-tokenizer.save_pretrained('production_models')
+history = model.fit(X_train, y_train, epochs=500, batch_size=128, validation_split=0.1, callbacks=[early_stopping])
 
+# Evaluate the model
+test_loss = model.evaluate(X_test, y_test)
+print("Test Loss: ", test_loss)
+
+
+model.save('production_model')
