@@ -29,9 +29,3 @@ This repository contains the source code for an iOS app that interfaces with a F
 **App Store Availability**: The app is also available for download from the App Store, allowing users to get price estimates for their cars. The training data is limited and quite old so the accuracy is not so great - working on a web scraper in a future repository. 
 
 **Usage Instructions**: Users can clone this repository and test the app using the provided Swift code in Xcode (Apple's iOS app development IDE). The GCP endpoint must to inserted into the ``NetworkManager.swift`` file to send Iphone audio recodings to the Flask application.
-
-**Repository Cloning Instructions**
-```bash
-git clone https://github.com/luke-harriman/car_price_predictor.git
-cd car_price_predictor
-```
