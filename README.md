@@ -2,7 +2,7 @@
 
 ## Overview
 
-The following repository is a very simple iOS app that provides the user with a price prediction on their car. The app uses AI to trascribe and process the audio from the iPhone's microphone to extract relevant features that help predict what the car might be worth. 
+The following repository is a very simple iOS app that provides the user with a price prediction on their car. The app uses AI to trascribe, process extract relevant details about the car that may help predict what the car might be worth. 
 
 ## Functionality
 **Speech to Text**: The app takes verbal descriptions of cars (e.g., Brand, Model, Year, Mileage, etc.) and converts them into text using [OpenAI's Whisper speech-to-text model](https://huggingface.co/openai/whisper-base).
